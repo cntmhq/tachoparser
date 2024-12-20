@@ -25,3 +25,8 @@ vendor/
 
 # build folder
 /build
+.envrc
+
+.direnv
+
+*.json

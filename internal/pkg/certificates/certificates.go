@@ -6,11 +6,13 @@ import (
 	"encoding/binary"
 	"io/fs"
 	"io/ioutil"
-	"log"
 	"math/big"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"github.com/kyburz-switzerland-ag/tachoparser/pkg/decoder"
 )
@@ -38,6 +40,7 @@ func getPks1Fs() fs.FS {
 }
 
 func getPks2Fs() fs.FS {
+
 	if _, err := os.Stat("./pks2/ERCA Gen2 (1) Root Certificate.bin"); err == nil {
 		log.Print("using pks2 live mode")
 		return os.DirFS("pks2")
@@ -50,17 +53,18 @@ func getPks2Fs() fs.FS {
 }
 
 func loadPK1(path string, keyIdentifier uint64) {
+
 	f, err := getPks1Fs().Open(path)
 	if err != nil {
-		log.Fatalf("error opening pk file: %s", err)
+		log.Fatal().Msgf("error opening pk file: %s", err)
 	}
 	defer f.Close()
 	contents, err := ioutil.ReadAll(f)
 	if err != nil {
-		log.Fatalf("error reading pk file: %s", err)
+		log.Fatal().Msgf("error reading pk file: %s", err)
 	}
 	if len(contents) != 194 {
-		log.Fatalf("error: pk file has wrong size: %v should be %v", len(contents), 194)
+		log.Fatal().Msgf("error: pk file has wrong size: %v should be %v", len(contents), 194)
 	}
 	c := [194]byte{}
 	copy(c[:], contents)
@@ -79,14 +83,15 @@ func loadPK1(path string, keyIdentifier uint64) {
 }
 
 func loadPK2(path string, keyIdentifier uint64) {
+
 	f, err := getPks2Fs().Open(path)
 	if err != nil {
-		log.Fatalf("error opening pk file: %s", err)
+		log.Fatal().Msgf("error opening pk file: %s", err)
 	}
 	defer f.Close()
 	contents, err := ioutil.ReadAll(f)
 	if err != nil {
-		log.Fatalf("error reading pk file: %s", err)
+		log.Fatal().Msgf("error reading pk file: %s", err)
 	}
 	if len(contents) < 204 || len(contents) > 341 {
 		log.Printf("warn: pk file probably has wrong size: %v should be 204..341", len(contents))
@@ -106,6 +111,8 @@ func loadPK2(path string, keyIdentifier uint64) {
 }
 
 func init() {
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+
 	// root CA - this is the only file already decoded
 	// file structure
 	// 0..7: key identifier
@@ -123,13 +130,13 @@ func init() {
 		return
 	}
 	if len(contentsFirstGen) != 144 {
-		log.Fatalf("error: root pk file has wrong size: %v should be %v", len(contentsFirstGen), 144)
+		log.Fatal().Msgf("error: root pk file has wrong size: %v should be %v", len(contentsFirstGen), 144)
 	}
 	var rootKeyIdentifier uint64
 	buf := bytes.NewBuffer(contentsFirstGen[0:8])
 	err = binary.Read(buf, binary.BigEndian, &rootKeyIdentifier)
 	if err != nil {
-		log.Fatalf("error parsing root key identifier: %s", err)
+		log.Fatal().Msgf("error parsing root key identifier: %s", err)
 	}
 	rootCert := decoder.DecodedCertificateFirstGen{
 		CertificateHolderReference: rootKeyIdentifier,
@@ -166,14 +173,14 @@ func init() {
 		return
 	}
 	if len(contentsSecondGen) < 204 || len(contentsSecondGen) > 341 {
-		log.Fatalf("error: root pk file has wrong size: %v should be 204..341", len(contentsSecondGen))
+		log.Fatal().Msgf("error: root pk file has wrong size: %v should be 204..341", len(contentsSecondGen))
 	}
 	cert := decoder.CertificateSecondGen{
 		Certificate: contentsSecondGen,
 	}
 	err = cert.Decode()
 	if err != nil {
-		log.Fatalf("error: could not decode root pk: %v", err)
+		log.Fatal().Msgf("error: could not decode root pk: %v", err)
 	}
 	if cert.DecodedCertificate.CertificateBody.CertificateHolderReference != cert.DecodedCertificate.CertificateBody.CertificateAuthorityReference {
 		log.Printf("warn: root CAR != root CHR")
